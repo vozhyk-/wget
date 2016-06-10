@@ -594,7 +594,7 @@ bar_create (const char *f_download, wgint initial, wgint total)
   bp->width = screen_width - 1;
   /* + enough space for the terminating zero, and hopefully enough room
    * for multibyte characters. */
-#define BUF_LEN (bp->width + 100)
+#define BUF_LEN (bp->width + 300)
   bp->buffer = xmalloc (BUF_LEN);
 
   logputs (LOG_VERBOSE, "\n");
@@ -897,6 +897,20 @@ get_eta (int *bcd)
    are confused when they see strchr (s, '\0') in the code.  */
 #define move_to_end(s) s = strchr (s, '\0');
 
+void put_s(char **buf, char *s)
+{
+  int i;
+  for (i = 0; i < strlen(s); i++)
+    *(*buf)++ = s[i];
+}
+
+void fill_s(char **buf, char *s, int count)
+{
+  int i;
+  for (i = 0; i < count; i++)
+    put_s(buf, s);
+}
+
 static void
 create_image (struct bar_progress *bp, double dl_total_time, bool done)
 {
@@ -1018,10 +1032,12 @@ create_image (struct bar_progress *bp, double dl_total_time, bool done)
   if (progress_size && bp->total_length > 0)
     {
       /* Size of the initial portion. */
-      int insz = (double)bp->initial_length / bp->total_length * progress_size;
+      double p_insz = (double)bp->initial_length / bp->total_length * progress_size;
+      int insz = p_insz;
 
       /* Size of the downloaded portion. */
-      int dlsz = (double)size / bp->total_length * progress_size;
+      double p_dlsz = (double)size / bp->total_length * progress_size;
+      int dlsz = p_dlsz;
 
       char *begin;
 
@@ -1031,17 +1047,23 @@ create_image (struct bar_progress *bp, double dl_total_time, bool done)
       *p++ = '[';
       begin = p;
 
-      /* Print the initial portion of the download with '+' chars, the
-         rest with '=' and one '>'.  */
-      memset (p, '+', insz);
-      p += insz;
+      /* Print the initial portion of the download with inchar chars, the
+         rest with dlchar and one endchar.  */
+      char *inchar = "▣";
+      fill_s(&p, inchar, insz);
 
+      p_dlsz -= insz;
       dlsz -= insz;
       if (dlsz > 0)
         {
-          memset (p, '=', dlsz-1);
-          p += dlsz - 1;
-          *p++ = '>';
+          char *endchars[] = {" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
+          char *dlchar = endchars[countof(endchars) - 1];
+
+          fill_s(&p, dlchar, dlsz - 1);
+
+          char *endchar = endchars[(int)((p_dlsz - dlsz) *
+                                         (countof(endchars)))];
+          put_s(&p, endchar);
         }
 
       memset (p, ' ', (progress_size - (p - begin)));
